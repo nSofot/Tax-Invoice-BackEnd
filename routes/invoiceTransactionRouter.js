@@ -12,3 +12,4 @@ invoiceTransactionRouter.get("/", getInvoiceTransactions);
 invoiceTransactionRouter.get("/:invoiceNumber", getInvoiceTransactionByNumber);
 
 export default invoiceTransactionRouter;
+// module.exports = invoiceTransactionRouter
