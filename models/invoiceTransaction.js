@@ -31,7 +31,6 @@ const invoiceTransactionSchema = new mongoose.Schema(
             validate: { validator: (lines) => lines.length > 0, message: "At least one invoice item is required" },
         },
         subTotal: { type: Number, required: true, min: 0 },
-        sscl: { type: Number, required: true, min: 0 },
         vat: { type: Number, required: true, min: 0 },
         total: { type: Number, required: true, min: 0 },
         words: { type: String, default: "" },
