@@ -30,7 +30,7 @@ app.use((req, res, next) => {
                 req.user = decoded;
                 next();
             } else {
-                res.status(403).json({ message: "Invalid token" });
+                res.status(401).json({ message: "Your session is invalid or has expired. Please log in again." });
             }
         });
     } else {
