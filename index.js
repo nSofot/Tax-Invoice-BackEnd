@@ -10,6 +10,7 @@ import companyDataRoutes from "./routes/companyDataRoutes.js";
 import userRouter from "./routes/userRouter.js";
 import customerRouter from "./routes/customerRouter.js";
 import invoiceTransactionRouter from "./routes/invoiceTransactionRouter.js";
+import itemRouter from "./routes/itemRouter.js";
 
 
 dotenv.config();
@@ -48,6 +49,7 @@ app.use("/api/company", companyDataRoutes);
 app.use("/api/user", userRouter);
 app.use("/api/customer", customerRouter);
 app.use("/api/invoice-transactions", invoiceTransactionRouter);
+app.use("/api/items", itemRouter);
 
 
 // Default 404 handler
