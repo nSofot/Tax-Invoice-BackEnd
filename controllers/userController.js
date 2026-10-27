@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import axios from "axios";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import { randomBytes } from "crypto";
 
 dotenv.config();
 
@@ -28,17 +29,17 @@ async function generateUserId() {
 export async function createUser(req, res) {
   try {
     const { email, firstname, lastname, mobile, password, role, isActive, image, dateOfBirth } = req.body;
-
-    if (role === "admin" && (!req.user || req.user.role !== "admin")) {
-      return res.status(403).json({ message: "Only admins can create another admin user." });
+    if (!isAdmin(req)) return res.status(403).json({ message: "Only admins can add users." });
+    if (!firstname?.trim() || !lastname?.trim() || !role || (!email?.trim() && !mobile?.trim())) {
+      return res.status(400).json({ message: "First name, last name, role, and email or mobile are required." });
     }
-
-    if (!req.user) {
-      return res.status(403).json({ message: "Please login first to add users." });
+    if (!['admin', 'manager', 'accountant', 'cashier', 'pumpman', 'user'].includes(role)) {
+      return res.status(400).json({ message: "Invalid user role." });
     }
 
     const newUserId = await generateUserId();
-    const hashedPassword = bcrypt.hashSync(process.env.JWT_KEY + password, 10);
+    const initialPassword = password || randomBytes(32).toString("hex");
+    const hashedPassword = bcrypt.hashSync(process.env.JWT_KEY + initialPassword, 10);
 
     const user = new User({
       userId: newUserId,
@@ -54,8 +55,12 @@ export async function createUser(req, res) {
     });
 
     await user.save();
-    res.status(201).json({ message: "User added successfully" });
+    const safeUser = user.toObject();
+    delete safeUser.password;
+    res.status(201).json({ message: "User added successfully", user: safeUser });
   } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: "A user with that email or mobile already exists." });
+    if (err.name === "ValidationError") return res.status(400).json({ message: "User data is invalid", error: err.message });
     res.status(500).json({ message: "Internal server error", error: err.message });
   }
 }
@@ -131,6 +136,7 @@ export async function loginUsers(req, res) {
 // ✅ Delete User
 export async function deleteUser(req, res) {
   if (!isAdmin(req)) return res.status(403).json({ message: "You are not authorized to delete user" });
+  if (req.params.userId === req.user.userId) return res.status(400).json({ message: "You cannot delete your own account." });
 
   try {
     const result = await User.deleteOne({ userId: req.params.userId });
@@ -147,10 +153,23 @@ export async function updateUser(req, res) {
 
   try {
     const { userId } = req.params;
-    const result = await User.updateOne({ userId }, req.body);
-    if (result.matchedCount === 0) return res.status(404).json({ message: "User not found" });
-    res.json({ message: "User updated successfully" });
+    const { email, firstname, lastname, mobile, password, role } = req.body;
+    const updates = {};
+    if (email !== undefined) updates.email = String(email).trim();
+    if (firstname !== undefined) updates.firstname = String(firstname).trim();
+    if (lastname !== undefined) updates.lastname = String(lastname).trim();
+    if (mobile !== undefined) updates.mobile = String(mobile).trim();
+    if (role !== undefined) updates.role = role;
+    if (password) updates.password = bcrypt.hashSync(process.env.JWT_KEY + password, 10);
+    if (updates.firstname === "" || updates.lastname === "") return res.status(400).json({ message: "First and last name cannot be empty." });
+    if (role !== undefined && !['admin', 'manager', 'accountant', 'cashier', 'pumpman', 'user'].includes(role)) return res.status(400).json({ message: "Invalid user role." });
+    if (Object.keys(updates).length === 0) return res.status(400).json({ message: "Provide user fields to update." });
+    const user = await User.findOneAndUpdate({ userId }, { $set: { ...updates, updatedAt: new Date() } }, { new: true, runValidators: true }).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({ message: "User updated successfully", user });
   } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: "A user with that email or mobile already exists." });
+    if (err.name === "ValidationError") return res.status(400).json({ message: "User data is invalid", error: err.message });
     res.status(500).json({ message: "Failed to update user", error: err.message });
   }
 }
@@ -160,7 +179,7 @@ export async function getUsers(req, res) {
   if (!isAdmin(req)) return res.status(403).json({ message: "Unauthorized access" });
 
   try {
-    const users = await User.find();
+    const users = await User.find().select("-password").sort({ userId: 1 });
     res.json(users);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch users", error: err.message });
