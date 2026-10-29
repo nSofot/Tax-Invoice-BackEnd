@@ -55,19 +55,20 @@ export async function createInvoiceTransaction(req, res) {
     const lines = [];
     for (const [index, item] of body.lines.entries()) {
         const description = String(item?.description || "").trim();
-        const quantity = Number(item?.quantity);
+        const amount = Number(item?.amount);
         const unitPrice = Number(item?.unitPrice);
-        if (!description || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitPrice) || unitPrice < 0) {
-            return res.status(400).json({ message: `Invoice item ${index + 1} has invalid description, quantity, or unit price` });
+        if (!description || !Number.isFinite(amount) || amount <= 0 || !Number.isFinite(unitPrice) || unitPrice <= 0) {
+            return res.status(400).json({ message: `Invoice item ${index + 1} has invalid description, amount, or unit price` });
         }
-        const inclusiveAmount = roundMoney(quantity * unitPrice);
+        const quantity = amount / unitPrice;
+        const inclusiveAmount = roundMoney(amount);
         const netUnitPrice = roundMoney(unitPrice * 100 / 118);
         const netAmount = roundMoney(inclusiveAmount * 100 / 118);
         lines.push({ description, quantity, unitPrice: netUnitPrice, amount: netAmount });
     }
 
     const subTotal = roundMoney(lines.reduce((sum, item) => sum + item.amount, 0));
-    const total = roundMoney((body.lines || []).reduce((sum, item) => sum + roundMoney(Number(item.quantity) * Number(item.unitPrice)), 0));
+    const total = roundMoney((body.lines || []).reduce((sum, item) => sum + roundMoney(Number(item.amount)), 0));
     const vat = roundMoney(total - subTotal);
 
     try {
